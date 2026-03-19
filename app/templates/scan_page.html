@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Проверка посетителя</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+        }
+        .info {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .info p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        .info strong {
+            color: #555;
+        }
+        .status {
+            background: #e8e8e8;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid;
+        }
+        .status.admitted {
+            border-left-color: #4CAF50;
+        }
+        .status.denied {
+            border-left-color: #f44336;
+        }
+        .status.pending {
+            border-left-color: #ff9800;
+        }
+        .button {
+            padding: 15px 25px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            width: 100%;
+            transition: opacity 0.3s;
+        }
+        .button:hover {
+            opacity: 0.9;
+        }
+        .admit {
+            background: #4CAF50;
+            color: white;
+        }
+        .deny {
+            background: #f44336;
+            color: white;
+        }
+        .back {
+            background: #ccc;
+            color: #333;
+        }
+        .login-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #2196F3;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .login-form {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .login-form input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .login-form button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            width: 100%;
+            cursor: pointer;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            .button { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+    {% if error %}
+        <div class="error">
+            <h3>Ошибка</h3>
+            <p>{{ error }}</p>
+        </div>
+        <button onclick="window.location.href='/qr-scan'" class="button back">← Назад к сканированию</button>
+    {% elif registration %}
+        <h2>Данные посетителя</h2>
+        <div class="info">
+            <p><strong>ФИО:</strong> {{ registration.full_name }}</p>
+            <p><strong>Дата рождения:</strong> {{ registration.birth_date.strftime('%d.%m.%Y') }}</p>
+            <p><strong>Место рождения:</strong> {{ registration.birth_place }}</p>
+            <p><strong>Email:</strong> {{ registration.email }}</p>
+            {% if registration.school %}
+                <p><strong>Учебное заведение:</strong> {{ registration.school }}</p>
+            {% endif %}
+            <p><strong>Категория:</strong> {{ category_display }}</p>
+            <p><strong>Интерес:</strong> {{ education_display }}</p>
+        </div>
+
+        {% if last_scan_status %}
+        <div class="status 
+            {% if last_scan_status == 'admitted' %}admitted
+            {% elif last_scan_status == 'denied' %}denied
+            {% else %}pending{% endif %}">
+            <p><strong>Статус сканирования:</strong> 
+            {% if last_scan_status == 'admitted' %}
+                ✅ Пропущен
+            {% elif last_scan_status == 'denied' %}
+                ❌ Не пропущен
+            {% else %}
+                🟡 На рассмотрении
+            {% endif %}
+            </p>
+            {% if last_scan_time %}
+            <p><small>Время последнего сканирования: {{ last_scan_time.strftime('%d.%m.%Y %H:%M') }}</small></p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if auth_mode %}
+            <div class="login-form">
+                <h3>Вход для сотрудников</h3>
+                {% if auth_error %}
+                    <div class="error">{{ auth_error }}</div>
+                {% endif %}
+                <form method="post" action="/qr-scan">
+                    <input type="hidden" name="uid" value="{{ uid }}">
+                    <input type="password" name="password" placeholder="Пароль" required autofocus>
+                    <button type="submit">Войти</button>
+                </form>
+            </div>
+        {% elif is_guard %}
+            <form method="post" action="/qr-scan">
+                <input type="hidden" name="uid" value="{{ registration.id }}">
+                <button type="submit" name="status" value="admitted" class="button admit">✅ Пропустить</button>
+                <button type="submit" name="status" value="denied" class="button deny">❌ Не пропускать</button>
+            </form>
+            <br>
+            <a href="/qr-scan?logout=1" class="login-link">🚪 Выйти из режима сотрудника</a>
+        {% else %}
+            <a href="/qr-scan?uid={{ uid }}&auth=1" class="login-link">🔐 Вход для сотрудников</a>
+        {% endif %}
+
+        <button onclick="window.location.href='/qr-scan'" class="button back">← Назад к сканированию</button>
+    {% else %}
+        <div class="error">
+            <p>UID не указан</p>
+        </div>
+        <button onclick="window.location.href='/qr-scan'" class="button back">← Назад к сканированию</button>
+    {% endif %}
+</body>
+</html>

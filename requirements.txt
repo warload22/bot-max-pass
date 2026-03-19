@@ -1,0 +1,12 @@
+Flask==2.3.3
+gunicorn==21.2.0
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
+requests==2.31.0
+qrcode[pil]==7.4.2
+bcrypt==4.0.1
+openpyxl==3.1.2annotated-types @ file:///opt/max_bot_pass/annotated_types-0.7.0-py3-none-any.whl#sha256=1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53
+pydantic @ file:///opt/max_bot_pass/pydantic-2.12.5-py3-none-any.whl#sha256=e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d
+pydantic_core @ file:///opt/max_bot_pass/pydantic_core-2.42.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl#sha256=f2a70fe4db00ab03a9f976d28471c8e696ebd3b8455ccfa5e36e5d1a2ff301a7
+typing-inspection @ file:///opt/max_bot_pass/typing_inspection-0.4.2-py3-none-any.whl#sha256=4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7

@@ -1,0 +1,20 @@
+# Виртуальное окружение
+venv/
+.env
+.env.*
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Логи и бекапы
+logs/
+backups/
+*.log
+*.sql.gz
+*.tar.gz
+
+# Временные файлы
+*.xlsx
+.DS_Store
