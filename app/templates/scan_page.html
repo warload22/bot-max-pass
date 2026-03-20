@@ -127,7 +127,6 @@
             <h3>Ошибка</h3>
             <p>{{ error }}</p>
         </div>
-        <button onclick="window.location.href='/qr-scan'" class="button back">← Назад к сканированию</button>
     {% elif registration %}
         <h2>Данные посетителя</h2>
         <div class="info">
@@ -181,17 +180,15 @@
                 <button type="submit" name="status" value="denied" class="button deny">❌ Не пропускать</button>
             </form>
             <br>
-            <a href="/qr-scan?logout=1" class="login-link">🚪 Выйти из режима сотрудника</a>
+            <a href="/qr-scan?logout=1&uid={{ registration.id }}" class="login-link">🚪 Выйти из режима сотрудника</a>
         {% else %}
             <a href="/qr-scan?uid={{ uid }}&auth=1" class="login-link">🔐 Вход для сотрудников</a>
         {% endif %}
 
-        <button onclick="window.location.href='/qr-scan'" class="button back">← Назад к сканированию</button>
     {% else %}
         <div class="error">
             <p>UID не указан</p>
         </div>
-        <button onclick="window.location.href='/qr-scan'" class="button back">← Назад к сканированию</button>
     {% endif %}
 </body>
 </html>

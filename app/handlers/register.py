@@ -146,7 +146,6 @@ def handle_residence(chat_id: int, user_id: int, text: str) -> None:
         db.close()
 
 def handle_email(chat_id: int, user_id: int, text: str) -> None:
-    """Проверяет email, сохраняет и переходит к выбору категории."""
     email = text.strip().lower()
     if not validate_email(email):
         max_api.send_message(chat_id, "Неверный формат email. Попробуйте ещё раз:")
@@ -159,16 +158,24 @@ def handle_email(chat_id: int, user_id: int, text: str) -> None:
             data = {}
         data['email'] = email
         dialog_repo.set(user_id, States.AWAITING_CATEGORY, data)
+
         # Кнопки категорий + отмена
         buttons = [(cat[0], cat[1]) for cat in CATEGORIES]
         buttons.append(("🚫 Отмена", CallbackActions.CANCEL))
         keyboard = build_menu_keyboard(buttons)
-        max_api.send_message(chat_id, "Кто вы?", keyboard=keyboard)
+
+        # Пояснительный текст
+        info_text = (
+            "Кто вы?\n\n"
+            "👨‍🎓 Абитуриент – поступающий в Академию (школьник, выпускник).\n"
+            "👪 Родитель – родитель или законный представитель абитуриента.\n"
+            "👤 Слушатель – тот, кто хочет получить дополнительные знания или пройти курсы."
+        )
+        max_api.send_message(chat_id, info_text, keyboard=keyboard)
     finally:
         db.close()
 
 def handle_category(chat_id: int, user_id: int, callback_data: str) -> None:
-    """Обработка выбора категории. Для абитуриентов запрашиваем учебное заведение."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -179,10 +186,17 @@ def handle_category(chat_id: int, user_id: int, callback_data: str) -> None:
         dialog_repo.set(user_id, States.AWAITING_CATEGORY, data)
 
         if callback_data == 'applicant':
+            # Для абитуриентов запрашиваем учебное заведение
             dialog_repo.set(user_id, States.AWAITING_SCHOOL, data)
             keyboard = build_menu_keyboard([("❌ Отмена", CallbackActions.CANCEL)])
             max_api.send_message(chat_id, "Из какого вы учебного заведения? (введите название школы/колледжа/вуза)", keyboard=keyboard)
+        elif callback_data == 'listener':
+            # Для слушателей не спрашиваем образование, сразу показываем подтверждение
+            data['education_interest'] = None
+            dialog_repo.set(user_id, States.CONFIRM_DATA, data)
+            show_confirmation(chat_id, user_id, data)
         else:
+            # Для остальных категорий (родитель и т.д.) переходим к выбору образования
             dialog_repo.set(user_id, States.AWAITING_EDUCATION_INTEREST, data)
             buttons = [(edu[0], edu[1]) for edu in EDUCATION_INTERESTS]
             buttons.append(("🚫 Отмена", CallbackActions.CANCEL))
@@ -209,7 +223,6 @@ def handle_school(chat_id: int, user_id: int, text: str) -> None:
         db.close()
 
 def handle_education_interest(chat_id: int, user_id: int, callback_data: str) -> None:
-    """Сохраняет интерес, показывает сводку данных для подтверждения."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -218,39 +231,7 @@ def handle_education_interest(chat_id: int, user_id: int, callback_data: str) ->
             data = {}
         data['education_interest'] = callback_data
         dialog_repo.set(user_id, States.CONFIRM_DATA, data)
-        logger.info(f"Data before confirmation: {data}")
-
-        if not data or 'birth_date' not in data:
-            dialog_repo.clear(user_id)
-            max_api.send_message(chat_id, "Произошла ошибка. Начните регистрацию заново.")
-            return
-
-        birth_date_obj = datetime.fromisoformat(data['birth_date']).date()
-        birth_date_str = format_date_for_display(birth_date_obj)
-        category_display = get_category_display(data['category'])
-        education_display = get_education_display(data['education_interest'])
-
-        summary = (
-            f"Проверьте введённые данные:\n\n"
-            f"ФИО: {data['full_name']}\n"
-            f"Дата рождения: {birth_date_str}\n"
-            f"Место рождения: {data['birth_place']}\n"
-            f"Место жительства: {data.get('residence', '')}\n"
-            f"Email: {data['email']}\n"
-            f"Категория: {category_display}\n"
-        )
-        if data.get('school'):
-            summary += f"Учебное заведение: {data['school']}\n"
-        summary += f"Интересующее образование: {education_display}\n\n"
-        summary += "Всё верно?"
-
-        buttons = [
-            ("✅ Подтвердить", CallbackActions.CONFIRM),
-            ("✏️ Изменить", CallbackActions.EDIT),
-            ("🚫 Отмена", CallbackActions.CANCEL)
-        ]
-        keyboard = build_menu_keyboard(buttons)
-        max_api.send_message(chat_id, summary, keyboard=keyboard)
+        show_confirmation(chat_id, user_id, data)
     finally:
         db.close()
 
@@ -375,3 +356,37 @@ def handle_edit(chat_id: int, user_id: int) -> None:
         handle_register_start(chat_id, user_id)
     finally:
         db.close()
+
+def show_confirmation(chat_id: int, user_id: int, data: dict) -> None:
+    """Показывает пользователю сводку введённых данных для подтверждения."""
+    if not data or 'birth_date' not in data:
+        logger.error("No data or birth_date in show_confirmation")
+        return
+
+    birth_date_obj = datetime.fromisoformat(data['birth_date']).date()
+    birth_date_str = format_date_for_display(birth_date_obj)
+    category_display = get_category_display(data['category'])
+    education_display = get_education_display(data.get('education_interest')) if data.get('education_interest') else 'не указано'
+
+    summary = (
+        f"Проверьте введённые данные:\n\n"
+        f"ФИО: {data['full_name']}\n"
+        f"Дата рождения: {birth_date_str}\n"
+        f"Место рождения: {data['birth_place']}\n"
+        f"Место жительства: {data.get('residence', '')}\n"
+        f"Email: {data['email']}\n"
+        f"Категория: {category_display}\n"
+    )
+    if data.get('school'):
+        summary += f"Учебное заведение: {data['school']}\n"
+    summary += f"Интересующее образование: {education_display}\n\n"
+    summary += "Всё верно?"
+    summary += "\n\nНажимая «Подтвердить», вы даёте согласие на обработку персональных данных."
+
+    buttons = [
+        ("✅ Подтвердить", CallbackActions.CONFIRM),
+        ("✏️ Изменить", CallbackActions.EDIT),
+        ("🚫 Отмена", CallbackActions.CANCEL)
+    ]
+    keyboard = build_menu_keyboard(buttons)
+    max_api.send_message(chat_id, summary, keyboard=keyboard)

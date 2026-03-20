@@ -1,12 +1,14 @@
 import io
+from datetime import timedelta
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
+from app.core.config import Config
 from app.repositories.registration import RegistrationRepository
 from app.repositories.anonymized_stat import AnonymizedStatRepository
 from app.handlers.common import get_category_display, get_education_display
 
 def export_full_registrations(db, event_id: int) -> bytes:
-    """Генерирует Excel с полными данными регистраций."""
+    """Генерирует Excel с полными данными регистраций (время регистрации с учётом TIME_OFFSET)."""
     reg_repo = RegistrationRepository(db)
     registrations = reg_repo.get_all_by_event(event_id)
 
@@ -35,13 +37,31 @@ def export_full_registrations(db, event_id: int) -> bytes:
     for reg in registrations:
         last_scan = scan_repo.get_last_by_registration(reg.id)
         if last_scan:
-            status_display = 'Пропущен' if last_scan.status == 'admitted' else 'Не пропущен' if last_scan.status == 'denied' else 'Не сканирован'
+            if last_scan.status == 'admitted':
+                status_display = 'Пропущен'
+            elif last_scan.status == 'denied':
+                status_display = 'Не пропущен'
+            else:
+                status_display = 'Не сканирован'
         else:
             status_display = 'Не сканирован'
 
+        # Применяем смещение времени для отображения в локальном часовом поясе
+        if reg.registered_at:
+            local_time = reg.registered_at + timedelta(seconds=Config.TIME_OFFSET)
+            registered_at_str = local_time.strftime('%d.%m.%Y %H:%M')
+        else:
+            registered_at_str = ''
+
+        if reg.last_qr_sent_at:
+            last_qr_local = reg.last_qr_sent_at + timedelta(seconds=Config.TIME_OFFSET)
+            last_qr_str = last_qr_local.strftime('%d.%m.%Y %H:%M')
+        else:
+            last_qr_str = ''
+
         row = [
             str(reg.id),
-            reg.registered_at.strftime('%d.%m.%Y %H:%M') if reg.registered_at else '',
+            registered_at_str,
             reg.full_name,
             reg.birth_date.strftime('%d.%m.%Y') if reg.birth_date else '',
             reg.birth_place,
@@ -51,12 +71,12 @@ def export_full_registrations(db, event_id: int) -> bytes:
             get_education_display(reg.education_interest) if reg.education_interest else '',
             reg.school or '',
             'Да' if reg.is_active else 'Нет',
-            reg.last_qr_sent_at.strftime('%d.%m.%Y %H:%M') if reg.last_qr_sent_at else '',
+            last_qr_str,
             status_display
         ]
         ws.append(row)
 
-    # автоширина колонок
+    # Автоширина колонок
     for col in ws.columns:
         max_length = 0
         column = col[0].column_letter
@@ -76,7 +96,7 @@ def export_full_registrations(db, event_id: int) -> bytes:
 
 
 def export_anonymized_stats(db, event_id: int) -> bytes:
-    """Генерирует Excel с обезличенной статистикой."""
+    """Генерирует Excel с обезличенной статистикой (время регистрации с учётом TIME_OFFSET)."""
     anon_repo = AnonymizedStatRepository(db)
     stats = anon_repo.get_by_event(event_id)
 
@@ -99,11 +119,19 @@ def export_anonymized_stats(db, event_id: int) -> bytes:
         cell.font = bold_font
         cell.alignment = Alignment(horizontal='center')
 
-    from app.repositories.scan import ScanRepository
-    scan_repo = ScanRepository(db)
-
     for stat in stats:
-        status_display = 'Пропущен' if stat.scan_status == 'admitted' else 'Не пропущен' if stat.scan_status == 'denied' else 'Не сканирован'
+        if stat.scan_status == 'admitted':
+            status_display = 'Пропущен'
+        elif stat.scan_status == 'denied':
+            status_display = 'Не пропущен'
+        else:
+            status_display = 'Не сканирован'
+
+        if stat.registered_at:
+            local_time = stat.registered_at + timedelta(seconds=Config.TIME_OFFSET)
+            reg_at_str = local_time.strftime('%d.%m.%Y %H:%M')
+        else:
+            reg_at_str = ''
 
         row = [
             stat.birth_year or '',
@@ -113,11 +141,11 @@ def export_anonymized_stats(db, event_id: int) -> bytes:
             get_education_display(stat.education_interest) if stat.education_interest else '',
             stat.school or '',
             status_display,
-            stat.registered_at.strftime('%d.%m.%Y %H:%M') if stat.registered_at else ''
+            reg_at_str
         ]
         ws.append(row)
 
-    # автоширина
+    # Автоширина
     for col in ws.columns:
         max_length = 0
         column = col[0].column_letter

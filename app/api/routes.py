@@ -36,7 +36,11 @@ def qr_scan():
 
     # Выход (удаление cookie)
     if logout:
-        resp = make_response(redirect(url_for('qr_scan.qr_scan')))
+        # Получаем uid из параметров запроса (может быть в GET или POST)
+        uid = request.args.get('uid') or request.form.get('uid')
+        # Перенаправляем на ту же страницу с тем же uid (или без, если uid не было)
+        redirect_url = url_for('qr_scan.qr_scan', uid=uid) if uid else url_for('qr_scan.qr_scan')
+        resp = make_response(redirect(redirect_url))
         resp.delete_cookie('guard_auth')
         return resp
 
