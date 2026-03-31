@@ -14,6 +14,8 @@ class AnonymizedStatRepository(BaseRepository):
         category: str,
         education_interest: str,
         scan_status: str = None,
+        school: str = None,
+        is_russian_citizen: bool = None,
         registered_at=None
     ) -> AnonymizedStat:
         """Создаёт запись в anonymized_stats."""
@@ -25,6 +27,8 @@ class AnonymizedStatRepository(BaseRepository):
             category=category,
             education_interest=education_interest,
             scan_status=scan_status,
+            school=school,
+            is_russian_citizen=is_russian_citizen,
             registered_at=registered_at
         )
         self.db.add(stat)

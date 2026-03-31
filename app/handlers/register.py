@@ -39,7 +39,7 @@ def handle_register_start(chat_id: int, user_id: int) -> None:
         db.close()
 
 def handle_full_name(chat_id: int, user_id: int, text: str) -> None:
-    """Сохраняет ФИО и переходит к дате рождения."""
+    """Сохраняет ФИО и переходит к вопросу о гражданстве."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -47,76 +47,69 @@ def handle_full_name(chat_id: int, user_id: int, text: str) -> None:
         if data is None:
             data = {}
         data['full_name'] = text.strip()
-        dialog_repo.set(user_id, States.AWAITING_BIRTH_DATE, data)
-        keyboard = build_menu_keyboard([("❌ Отмена", CallbackActions.CANCEL)])
-        max_api.send_message(
-            chat_id,
-            "Введите вашу дату рождения в формате ДД.ММ.ГГГГ (например, 15.04.1999):",
-            keyboard=keyboard
-        )
-    finally:
-        db.close()
-
-def handle_birth_date(chat_id: int, user_id: int, text: str) -> None:
-    """Проверяет дату, сохраняет и запрашивает подтверждение."""
-    if not re.match(r'^\d{2}\.\d{2}\.\d{4}$', text.strip()):
-        max_api.send_message(chat_id, "Неверный формат. Введите дату в формате ДД.ММ.ГГГГ:")
-        return
-
-    try:
-        date_obj = datetime.strptime(text.strip(), "%d.%m.%Y").date()
-    except ValueError:
-        max_api.send_message(chat_id, "Такой даты не существует. Проверьте ввод и повторите:")
-        return
-
-    db = SessionLocal()
-    try:
-        dialog_repo = DialogStateRepository(db)
-        state, data = dialog_repo.get(user_id)
-        if data is None:
-            data = {}
-        data['birth_date'] = date_obj.isoformat()
-        data['awaiting_confirmation'] = True
-        dialog_repo.set(user_id, States.AWAITING_BIRTH_DATE, data)
-
-        formatted = format_date_for_display(date_obj)
+        dialog_repo.set(user_id, States.AWAITING_CITIZENSHIP, data)
         buttons = [
-            ("✅ Да", CallbackActions.BIRTH_DATE_YES),
-            ("❌ Нет", CallbackActions.BIRTH_DATE_NO),
+            ("✅ Да", CallbackActions.CITIZENSHIP_YES),
+            ("❌ Нет", CallbackActions.CITIZENSHIP_NO),
             ("🚫 Отмена", CallbackActions.CANCEL)
         ]
         keyboard = build_menu_keyboard(buttons)
-        max_api.send_message(
-            chat_id,
-            f"Вы ввели {formatted}. Всё верно?",
-            keyboard=keyboard
-        )
+        max_api.send_message(chat_id, "Являетесь ли вы гражданином Российской Федерации?", keyboard=keyboard)
     finally:
         db.close()
 
-def handle_birth_date_confirmation(chat_id: int, user_id: int, callback_data: str) -> None:
-    """Обрабатывает подтверждение даты (Да/Нет)."""
+def handle_citizenship(chat_id: int, user_id: int, callback_data: str) -> None:
+    """Обрабатывает ответ о гражданстве."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
         state, data = dialog_repo.get(user_id)
         if data is None:
             data = {}
-        if callback_data == CallbackActions.BIRTH_DATE_YES:
-            dialog_repo.set(user_id, States.AWAITING_BIRTH_PLACE, data)
+        if callback_data == CallbackActions.CITIZENSHIP_YES:
+            data['is_russian_citizen'] = True
+            dialog_repo.set(user_id, States.AWAITING_BIRTH_YEAR, data)
             keyboard = build_menu_keyboard([("❌ Отмена", CallbackActions.CANCEL)])
-            max_api.send_message(chat_id, "Введите ваше место рождения (как в паспорте):", keyboard=keyboard)
-        else:  # Нет
-            data.pop('birth_date', None)
-            data.pop('awaiting_confirmation', None)
-            dialog_repo.set(user_id, States.AWAITING_BIRTH_DATE, data)
-            keyboard = build_menu_keyboard([("❌ Отмена", CallbackActions.CANCEL)])
-            max_api.send_message(chat_id, "Введите дату рождения ещё раз (в формате ДД.ММ.ГГГГ):", keyboard=keyboard)
+            max_api.send_message(chat_id, "Введите год вашего рождения (четыре цифры, например 1990):", keyboard=keyboard)
+        else:
+            # Не гражданин – регистрация отклонена
+            data['is_russian_citizen'] = False
+            dialog_repo.clear(user_id)
+            max_api.send_message(
+                chat_id,
+                "На основании руководящих документов МЧС РФ допуск на режимный объект осуществляется только гражданам РФ.\n"
+                "К сожалению, вы не можете пройти регистрацию."
+            )
+            from app.handlers.message_handler import send_main_menu
+            send_main_menu(chat_id, user_id)
+    finally:
+        db.close()
+
+def handle_birth_year(chat_id: int, user_id: int, text: str) -> None:
+    """Проверяет и сохраняет год рождения."""
+    if not re.match(r'^\d{4}$', text.strip()):
+        max_api.send_message(chat_id, "Неверный формат. Введите год четырьмя цифрами (например, 1990):")
+        return
+    year = int(text.strip())
+    current_year = datetime.now().year
+    if year < 1900 or year > current_year:
+        max_api.send_message(chat_id, f"Год должен быть от 1900 до {current_year}. Попробуйте ещё раз:")
+        return
+
+    db = SessionLocal()
+    try:
+        dialog_repo = DialogStateRepository(db)
+        state, data = dialog_repo.get(user_id)
+        if data is None:
+            data = {}
+        data['birth_year'] = year
+        dialog_repo.set(user_id, States.AWAITING_BIRTH_PLACE, data)
+        keyboard = build_menu_keyboard([("❌ Отмена", CallbackActions.CANCEL)])
+        max_api.send_message(chat_id, "Введите ваше место рождения (как в паспорте):", keyboard=keyboard)
     finally:
         db.close()
 
 def handle_birth_place(chat_id: int, user_id: int, text: str) -> None:
-    """Сохраняет место рождения, переходит к месту жительства."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -131,7 +124,6 @@ def handle_birth_place(chat_id: int, user_id: int, text: str) -> None:
         db.close()
 
 def handle_residence(chat_id: int, user_id: int, text: str) -> None:
-    """Сохраняет место жительства, переходит к email."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -158,20 +150,10 @@ def handle_email(chat_id: int, user_id: int, text: str) -> None:
             data = {}
         data['email'] = email
         dialog_repo.set(user_id, States.AWAITING_CATEGORY, data)
-
-        # Кнопки категорий + отмена
         buttons = [(cat[0], cat[1]) for cat in CATEGORIES]
         buttons.append(("🚫 Отмена", CallbackActions.CANCEL))
         keyboard = build_menu_keyboard(buttons)
-
-        # Пояснительный текст
-        info_text = (
-            "Кто вы?\n\n"
-            "👨‍🎓 Абитуриент – поступающий в Академию (школьник, выпускник).\n"
-            "👪 Родитель – родитель или законный представитель абитуриента.\n"
-            "👤 Слушатель – тот, кто хочет получить дополнительные знания или пройти курсы."
-        )
-        max_api.send_message(chat_id, info_text, keyboard=keyboard)
+        max_api.send_message(chat_id, "Кто вы?", keyboard=keyboard)
     finally:
         db.close()
 
@@ -186,17 +168,14 @@ def handle_category(chat_id: int, user_id: int, callback_data: str) -> None:
         dialog_repo.set(user_id, States.AWAITING_CATEGORY, data)
 
         if callback_data == 'applicant':
-            # Для абитуриентов запрашиваем учебное заведение
             dialog_repo.set(user_id, States.AWAITING_SCHOOL, data)
             keyboard = build_menu_keyboard([("❌ Отмена", CallbackActions.CANCEL)])
             max_api.send_message(chat_id, "Из какого вы учебного заведения? (введите название школы/колледжа/вуза)", keyboard=keyboard)
         elif callback_data == 'listener':
-            # Для слушателей не спрашиваем образование, сразу показываем подтверждение
             data['education_interest'] = None
             dialog_repo.set(user_id, States.CONFIRM_DATA, data)
             show_confirmation(chat_id, user_id, data)
         else:
-            # Для остальных категорий (родитель и т.д.) переходим к выбору образования
             dialog_repo.set(user_id, States.AWAITING_EDUCATION_INTEREST, data)
             buttons = [(edu[0], edu[1]) for edu in EDUCATION_INTERESTS]
             buttons.append(("🚫 Отмена", CallbackActions.CANCEL))
@@ -206,7 +185,6 @@ def handle_category(chat_id: int, user_id: int, callback_data: str) -> None:
         db.close()
 
 def handle_school(chat_id: int, user_id: int, text: str) -> None:
-    """Сохраняет учебное заведение и переходит к выбору образования."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -235,8 +213,41 @@ def handle_education_interest(chat_id: int, user_id: int, callback_data: str) ->
     finally:
         db.close()
 
+def show_confirmation(chat_id: int, user_id: int, data: dict) -> None:
+    """Показывает сводку введённых данных для подтверждения."""
+    if not data or 'birth_year' not in data:
+        logger.error("No data or birth_year in show_confirmation")
+        return
+
+    category_display = get_category_display(data['category'])
+    education_display = get_education_display(data.get('education_interest')) if data.get('education_interest') else 'не указано'
+
+    summary = (
+        f"Проверьте введённые данные:\n\n"
+        f"ФИО: {data['full_name']}\n"
+        f"Гражданин РФ: {'Да' if data['is_russian_citizen'] else 'Нет'}\n"
+        f"Год рождения: {data['birth_year']}\n"
+        f"Место рождения: {data['birth_place']}\n"
+        f"Место жительства: {data.get('residence', '')}\n"
+        f"Email: {data['email']}\n"
+        f"Категория: {category_display}\n"
+    )
+    if data.get('school'):
+        summary += f"Учебное заведение: {data['school']}\n"
+    summary += f"Интересующее образование: {education_display}\n\n"
+    summary += "Всё верно?"
+    summary += "\n\nНажимая «Подтвердить», вы даёте согласие на обработку персональных данных."
+
+    buttons = [
+        ("✅ Подтвердить", CallbackActions.CONFIRM),
+        ("✏️ Изменить", CallbackActions.EDIT),
+        ("🚫 Отмена", CallbackActions.CANCEL)
+    ]
+    keyboard = build_menu_keyboard(buttons)
+    max_api.send_message(chat_id, summary, keyboard=keyboard)
+
 def handle_confirm(chat_id: int, user_id: int) -> None:
-    """Подтверждение данных: создание регистрации, генерация QR, отправка."""
+    """Подтверждение данных: создание регистрации, генерация QR."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -244,7 +255,7 @@ def handle_confirm(chat_id: int, user_id: int) -> None:
         reg_repo = RegistrationRepository(db)
 
         state, data = dialog_repo.get(user_id)
-        if not data or 'birth_date' not in data:
+        if not data or 'birth_year' not in data:
             max_api.send_message(chat_id, "Ошибка: данные не найдены. Начните заново.")
             dialog_repo.clear(user_id)
             return
@@ -255,20 +266,19 @@ def handle_confirm(chat_id: int, user_id: int) -> None:
             dialog_repo.clear(user_id)
             return
 
-        # Деактивируем старые регистрации пользователя на это мероприятие
         reg_repo.deactivate_old_by_email(data['email'], event.id)
 
-        birth_date = datetime.fromisoformat(data['birth_date']).date()
         reg = reg_repo.create(
             event_id=event.id,
             full_name=data['full_name'],
-            birth_date=birth_date,
+            birth_year=data['birth_year'],
             birth_place=data['birth_place'],
             residence=data.get('residence', ''),
             email=data['email'],
             category=data['category'],
-            education_interest=data['education_interest'],
-            school=data.get('school')
+            education_interest=data.get('education_interest'),
+            school=data.get('school'),
+            is_russian_citizen=data['is_russian_citizen']
         )
 
         qr_bytes = qr_service.generate_qr_for_registration(reg.id)
@@ -299,7 +309,6 @@ def handle_confirm(chat_id: int, user_id: int) -> None:
         db.close()
 
 def handle_my_qr(chat_id: int, user_id: int) -> None:
-    """Повторная отправка QR-кода."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -319,7 +328,6 @@ def handle_my_qr(chat_id: int, user_id: int) -> None:
         db.close()
 
 def handle_reregister(chat_id: int, user_id: int) -> None:
-    """Перерегистрация: деактивирует старую и начинает новую."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -337,7 +345,6 @@ def handle_reregister(chat_id: int, user_id: int) -> None:
         db.close()
 
 def handle_main_menu(chat_id: int, user_id: int) -> None:
-    """Возврат в главное меню."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -348,7 +355,6 @@ def handle_main_menu(chat_id: int, user_id: int) -> None:
         db.close()
 
 def handle_edit(chat_id: int, user_id: int) -> None:
-    """Возврат к первому шагу регистрации (изменение данных)."""
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -356,37 +362,3 @@ def handle_edit(chat_id: int, user_id: int) -> None:
         handle_register_start(chat_id, user_id)
     finally:
         db.close()
-
-def show_confirmation(chat_id: int, user_id: int, data: dict) -> None:
-    """Показывает пользователю сводку введённых данных для подтверждения."""
-    if not data or 'birth_date' not in data:
-        logger.error("No data or birth_date in show_confirmation")
-        return
-
-    birth_date_obj = datetime.fromisoformat(data['birth_date']).date()
-    birth_date_str = format_date_for_display(birth_date_obj)
-    category_display = get_category_display(data['category'])
-    education_display = get_education_display(data.get('education_interest')) if data.get('education_interest') else 'не указано'
-
-    summary = (
-        f"Проверьте введённые данные:\n\n"
-        f"ФИО: {data['full_name']}\n"
-        f"Дата рождения: {birth_date_str}\n"
-        f"Место рождения: {data['birth_place']}\n"
-        f"Место жительства: {data.get('residence', '')}\n"
-        f"Email: {data['email']}\n"
-        f"Категория: {category_display}\n"
-    )
-    if data.get('school'):
-        summary += f"Учебное заведение: {data['school']}\n"
-    summary += f"Интересующее образование: {education_display}\n\n"
-    summary += "Всё верно?"
-    summary += "\n\nНажимая «Подтвердить», вы даёте согласие на обработку персональных данных."
-
-    buttons = [
-        ("✅ Подтвердить", CallbackActions.CONFIRM),
-        ("✏️ Изменить", CallbackActions.EDIT),
-        ("🚫 Отмена", CallbackActions.CANCEL)
-    ]
-    keyboard = build_menu_keyboard(buttons)
-    max_api.send_message(chat_id, summary, keyboard=keyboard)

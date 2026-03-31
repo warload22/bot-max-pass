@@ -24,13 +24,14 @@ class Registration(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(Integer, ForeignKey('events.id'), nullable=False)
     full_name = Column(String(255), nullable=False)
-    birth_date = Column(Date, nullable=False)
+    birth_year = Column(Integer, nullable=True) 
     birth_place = Column(Text, nullable=False)
     residence = Column(Text)
     email = Column(String(255))
     category = Column(String(20))  # 'applicant', 'parent', 'listener'
     education_interest = Column(String(20))  # 'bachelor', 'master', 'specialist', 'cadet'
     school = Column(String(255))  # новое поле для учебного заведения (только для абитуриентов)
+    is_russian_citizen = Column(Boolean, nullable=True)
     registered_at = Column(DateTime, server_default='now()')
     last_qr_sent_at = Column(DateTime)
     is_active = Column(Boolean, default=True)
@@ -59,6 +60,7 @@ class AnonymizedStat(Base):
     category = Column(String(20))
     education_interest = Column(String(20))
     scan_status = Column(String(20))  # последний статус сканирования
+    is_russian_citizen = Column(Boolean)
     school = Column(String(255))  # добавлено
     registered_at = Column(DateTime)
 

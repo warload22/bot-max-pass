@@ -11,25 +11,27 @@ class RegistrationRepository(BaseRepository):
         self,
         event_id: int,
         full_name: str,
-        birth_date: date,
+        birth_year: int,            # вместо birth_date
         birth_place: str,
         residence: str,
         email: str,
         category: str,
         education_interest: str,
-        school: str = None
+        school: str = None,
+        is_russian_citizen: bool = None
     ) -> Registration:
         """Создаёт новую регистрацию."""
         reg = Registration(
             event_id=event_id,
             full_name=full_name,
-            birth_date=birth_date,
+            birth_year=birth_year,
             birth_place=birth_place,
             residence=residence,
             email=email,
             category=category,
             education_interest=education_interest,
             school=school,
+            is_russian_citizen=is_russian_citizen,
             is_active=True
         )
         self.db.add(reg)

@@ -40,6 +40,11 @@ def handle_admin_callback(chat_id: int, user_id: int, action: str, args: List[st
             exports.export_full_data(chat_id, user_id)
         elif action == CallbackActions.ADMIN_ARCHIVE:
             exports.show_archive(chat_id, user_id)
+        elif action == "archive_download":
+            if args:
+                exports.handle_archive_download(chat_id, user_id, args[0])
+            else:
+                max_api.send_message(chat_id, "Ошибка: не указано мероприятие.")
         elif action == CallbackActions.ADMIN_CHANGE_DATE:
             dates.handle_change_date(chat_id, user_id)
         elif action == CallbackActions.ADMIN_ADD_NEXT:
@@ -51,7 +56,6 @@ def handle_admin_callback(chat_id: int, user_id: int, action: str, args: List[st
             dialog_repo.set(user_id, States.ADMIN_MENU)
             send_admin_menu(chat_id, user_id)
         elif action == 'noop':
-            # Информационная кнопка – ничего не делаем
             pass
         elif action == CallbackActions.ADMIN_LOGOUT:
             auth.logout_admin(chat_id, user_id)

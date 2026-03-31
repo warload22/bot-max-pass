@@ -137,6 +137,7 @@
             {% if registration.school %}
                 <p><strong>Учебное заведение:</strong> {{ registration.school }}</p>
             {% endif %}
+            <p><strong>Гражданин РФ:</strong> {{ "Да" if registration.is_russian_citizen else "Нет" }}</p>
             <p><strong>Категория:</strong> {{ category_display }}</p>
             <p><strong>Интерес:</strong> {{ education_display }}</p>
         </div>

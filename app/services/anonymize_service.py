@@ -6,6 +6,7 @@ from app.repositories.scan import ScanRepository
 from app.repositories.anonymized_stat import AnonymizedStatRepository
 from app.repositories.setting import SettingRepository
 from app.core.database import SessionLocal
+from app.models import Event, Registration, Scan   # добавили
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +32,14 @@ def anonymize_event(event_id: int) -> int:
 
             anon_repo.create(
                 event_id=event_id,
-                birth_year=reg.birth_date.year,
+                birth_year=reg.birth_year,
                 birth_place=reg.birth_place,
                 residence=reg.residence,
                 category=reg.category,
                 education_interest=reg.education_interest,
                 scan_status=scan_status,
+                school=reg.school,
+                is_russian_citizen=reg.is_russian_citizen,
                 registered_at=reg.registered_at
             )
             count += 1

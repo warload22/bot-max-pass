@@ -60,8 +60,7 @@ def handle_update(update_data: Dict[str, Any]) -> None:
     else:
         logger.debug(f"Unhandled update_type: {update.update_type}")
 
-def handle_message(chat_id: int, user_id: int, text: str, mid: Optional[str] = None) -> None:
-    """Обрабатывает текстовое сообщение в зависимости от состояния."""
+def handle_message(chat_id, user_id, text, mid=None):
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
@@ -80,11 +79,11 @@ def handle_message(chat_id: int, user_id: int, text: str, mid: Optional[str] = N
 
         if state == States.AWAITING_FULL_NAME:
             register.handle_full_name(chat_id, user_id, text)
-        elif state == States.AWAITING_BIRTH_DATE:
-            if data and data.get('awaiting_confirmation'):
-                max_api.send_message(chat_id, "Пожалуйста, подтвердите дату с помощью кнопок выше.")
-            else:
-                register.handle_birth_date(chat_id, user_id, text)
+        elif state == States.AWAITING_CITIZENSHIP:
+            # Ожидание callback'а, текст не обрабатываем
+            max_api.send_message(chat_id, "Пожалуйста, выберите вариант с помощью кнопок.")
+        elif state == States.AWAITING_BIRTH_YEAR:
+            register.handle_birth_year(chat_id, user_id, text)
         elif state == States.AWAITING_BIRTH_PLACE:
             register.handle_birth_place(chat_id, user_id, text)
         elif state == States.AWAITING_RESIDENCE:
@@ -105,15 +104,14 @@ def handle_message(chat_id: int, user_id: int, text: str, mid: Optional[str] = N
     finally:
         db.close()
 
-def handle_callback(chat_id: int, user_id: int, callback_data: str) -> None:
-    """Обрабатывает нажатия на inline-кнопки."""
-    logger.info(f"handle_callback: chat_id={chat_id}, user_id={user_id}, callback_data={callback_data}")
+def handle_callback(chat_id, user_id, callback_data):
+    logging.info(f"handle_callback: chat_id={chat_id}, user_id={user_id}, callback_data={callback_data}")
     db = SessionLocal()
     try:
         dialog_repo = DialogStateRepository(db)
         state, data = dialog_repo.get(user_id)
         action, args = parse_callback_data(callback_data)
-        logger.info(f"Parsed action={action}, args={args}")
+        logging.info(f"Parsed action={action}, args={args}")
 
         # Глобальная отмена регистрации (работает в любом состоянии)
         if action == CallbackActions.CANCEL:
@@ -137,8 +135,8 @@ def handle_callback(chat_id: int, user_id: int, callback_data: str) -> None:
             handle_main_menu_callback(chat_id, user_id, action)
             return
 
-        if state == States.AWAITING_BIRTH_DATE:
-            register.handle_birth_date_confirmation(chat_id, user_id, action)
+        if state == States.AWAITING_CITIZENSHIP:
+            register.handle_citizenship(chat_id, user_id, action)
         elif state == States.AWAITING_CATEGORY:
             register.handle_category(chat_id, user_id, action)
         elif state == States.AWAITING_EDUCATION_INTEREST:
@@ -158,10 +156,10 @@ def handle_callback(chat_id: int, user_id: int, callback_data: str) -> None:
             elif action == CallbackActions.MAIN_MENU:
                 register.handle_main_menu(chat_id, user_id)
             else:
-                logger.warning(f"Unhandled action in AFTER_REGISTRATION: {action}")
+                logging.warning(f"Unhandled action in AFTER_REGISTRATION: {action}")
                 max_api.send_message(chat_id, "Неизвестная команда.")
         else:
-            logger.warning(f"Unhandled callback in state {state}: {action}")
+            logging.warning(f"Unhandled callback in state {state}: {action}")
             max_api.send_message(chat_id, "Неизвестная команда.")
     finally:
         db.close()
